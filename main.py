@@ -1,6 +1,6 @@
 from fastapi import FastAPI, Request, Form
 from fastapi.templating import Jinja2Templates
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.responses import HTMLResponse
 import json
 import os
 
@@ -28,76 +28,43 @@ async def read_root(request: Request, mensaje: str = None):
     except Exception as e:
         return {"error": f"Error al leer el archivo: {str(e)}"}
 
-# Ruta para agregar una nueva fruta desde un formulario
-@app.post("/agregar")
-async def agregar_fruta(nueva_fruta: str = Form(...), color: str = Form(...), precio: str = Form(...)):
+# Ruta para agregar, actualizar y eliminar frutas desde el mismo formulario
+@app.post("/")
+async def modificar_fruta(request: Request, nueva_fruta: str = Form(None), color: str = Form(None), precio: str = Form(None), fruta_id: int = Form(None), eliminar_id: int = Form(None)):
     try:
+        # Cargar el archivo JSON
         with open("frutas.json", "r") as file:
             frutas_json = json.load(file)
+        
+        if nueva_fruta and color and precio:  # Si se proporcionan datos para agregar o actualizar
+            if fruta_id is not None:  # Si se está actualizando una fruta existente
+                if fruta_id < len(frutas_json):
+                    frutas_json[fruta_id] = {
+                        "nombre": nueva_fruta,
+                        "color": color,
+                        "precio": precio
+                    }
+                else:
+                    return {"error": "Fruta no encontrada para actualizar."}
+            else:  # Si se está agregando una nueva fruta
+                frutas_json.append({
+                    "nombre": nueva_fruta,
+                    "color": color,
+                    "precio": precio
+                })
 
-        # Agregar la nueva fruta
-        frutas_json.append({
-            "nombre": nueva_fruta,
-            "color": color,
-            "precio": precio
-        })
-
+        if eliminar_id is not None:  # Si se solicita eliminar una fruta
+            if eliminar_id < len(frutas_json):
+                del frutas_json[eliminar_id]
+            else:
+                return {"error": "Fruta no encontrada para eliminar."}
+        
         # Guardar los cambios en el archivo JSON
         with open("frutas.json", "w") as file:
             json.dump(frutas_json, file, ensure_ascii=False, indent=4)
 
         # Redirigir con mensaje de éxito
-        return RedirectResponse(url="/?mensaje=Fruta%20agregada%20correctamente")
+        return templates.TemplateResponse("index.html", {"request": request, "frutas": frutas_json, "mensaje": "Operación realizada correctamente."})
     
     except Exception as e:
-        return {"error": f"Error al agregar la fruta: {str(e)}"}
-
-# Ruta para actualizar una fruta
-@app.post("/frutas/{fruta_id}")
-async def actualizar_fruta(fruta_id: int, nueva_fruta: str = Form(...), color: str = Form(...), precio: str = Form(...)):
-    try:
-        with open("frutas.json", "r") as file:
-            frutas_json = json.load(file)
-
-        # Verifica que la fruta exista
-        if fruta_id < len(frutas_json):
-            frutas_json[fruta_id] = {
-                "nombre": nueva_fruta,
-                "color": color,
-                "precio": precio
-            }
-
-            # Guardar los cambios en el archivo JSON
-            with open("frutas.json", "w") as file:
-                json.dump(frutas_json, file, ensure_ascii=False, indent=4)
-
-            # Redirigir con mensaje de éxito
-            return RedirectResponse(url="/?mensaje=Fruta%20actualizada%20correctamente")
-        else:
-            return {"error": "Fruta no encontrada"}
-    
-    except Exception as e:
-        return {"error": f"Error al actualizar la fruta: {str(e)}"}
-
-# Ruta para eliminar una fruta
-@app.post("/eliminar/{fruta_id}")
-async def eliminar_fruta(fruta_id: int):
-    try:
-        with open("frutas.json", "r") as file:
-            frutas_json = json.load(file)
-
-        # Verifica que la fruta exista
-        if fruta_id < len(frutas_json):
-            del frutas_json[fruta_id]
-
-            # Guardar los cambios en el archivo JSON
-            with open("frutas.json", "w") as file:
-                json.dump(frutas_json, file, ensure_ascii=False, indent=4)
-
-            # Redirigir con mensaje de éxito
-            return RedirectResponse(url="/?mensaje=Fruta%20eliminada%20correctamente")
-        else:
-            return {"error": "Fruta no encontrada"}
-    
-    except Exception as e:
-        return {"error": f"Error al eliminar la fruta: {str(e)}"}
+        return {"error": f"Error al modificar la fruta: {str(e)}"}
